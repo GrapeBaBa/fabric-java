@@ -4,7 +4,6 @@ fabric-java
 
 It is a java client SDK for the project [Hyperledger](https://github.com/hyperledger/fabric).
 
-
 Example
 ==========
 
