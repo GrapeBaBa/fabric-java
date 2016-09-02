@@ -52,6 +52,8 @@ dependencies {
     compile 'io.grpc:grpc-netty:1.0.0'
     compile 'io.grpc:grpc-protobuf:1.0.0'
     compile 'io.grpc:grpc-stub:1.0.0'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.55'
+    compile 'net.openhft:chronicle-map:3.10.1'
     testCompile 'com.squareup.retrofit2:retrofit-mock:2.0.2'
     testCompile 'junit:junit:4.12'
 }
