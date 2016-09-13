@@ -21,9 +21,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
 import io.grpc.Channel;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NegotiationType;
@@ -39,6 +41,8 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.security.KeyPair;
+import java.security.PublicKey;
 import java.util.List;
 
 /**
@@ -87,7 +91,7 @@ public class MemberServiceImpl implements MemberService {
                 .build();
 
         initializeStubs(channel);
-        crypto = new Crypto(SecurityLevelEnum.CURVE_P_256_Size, HashAlgorithmEnum.SHA3);
+        crypto = new Crypto(SecurityLevel.CURVE_P_256_Size, HashAlgorithm.SHA3);
     }
 
     public MemberServiceImpl(String host, int port) {
@@ -164,6 +168,38 @@ public class MemberServiceImpl implements MemberService {
                 return input.getTok().toString();
             }
         });
+    }
+
+    @Override
+    public ListenableFuture<Enrollment> enroll(EnrollmentRequest enrollmentRequest) {
+        Preconditions.checkNotNull(enrollmentRequest.getEnrollmentID());
+        Preconditions.checkNotNull(enrollmentRequest.getEnrollmentSecret());
+
+        KeyPair signingKeyPair = crypto.ecdsaKeyGen();
+        PublicKey signingPublicKey = signingKeyPair.getPublic();
+
+        KeyPair encryptionKeyPair = crypto.ecdsaKeyGen();
+        PublicKey encryptionPublicKey = encryptionKeyPair.getPublic();
+
+        Ca.ECertCreateReq eCertCreateReq = Ca.ECertCreateReq.newBuilder().setId(Ca.Identity.newBuilder().setId(enrollmentRequest.getEnrollmentID()).build())
+                .setTok(Ca.Token.newBuilder().setTok(ByteString.copyFromUtf8(enrollmentRequest.getEnrollmentSecret())).build())
+                .setTs(Timestamp.newBuilder().setSeconds(System.currentTimeMillis() / 1000).setNanos(0))
+                .setSign(Ca.PublicKey.newBuilder().setType(Ca.CryptoType.ECDSA).setKey(ByteString.copyFrom(signingPublicKey.getEncoded())).build())
+                .setEnc(Ca.PublicKey.newBuilder().setType(Ca.CryptoType.ECDSA).setKey(ByteString.copyFrom(encryptionPublicKey.getEncoded())).build())
+                .build();
+
+        Futures.addCallback(ecapStub.createCertificatePair(eCertCreateReq), new FutureCallback<Ca.ECertCreateResp>() {
+            @Override
+            public void onSuccess(@Nullable Ca.ECertCreateResp result) {
+
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+
+            }
+        });
+        return null;
     }
 
     private void initializeStubs(Channel channel) {

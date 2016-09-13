@@ -19,6 +19,6 @@ package me.grapebaba.hyperledger.fabric;
 /**
  * Hash algorithms.
  */
-public enum HashAlgorithmEnum {
+public enum HashAlgorithm {
     SHA2, SHA3
 }

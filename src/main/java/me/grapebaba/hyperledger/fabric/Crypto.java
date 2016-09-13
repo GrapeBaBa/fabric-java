@@ -18,6 +18,7 @@ package me.grapebaba.hyperledger.fabric;
 
 
 import com.google.protobuf.ByteString;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,28 +35,32 @@ public class Crypto {
 
     private static final int NONCE_SIZE = 24;
 
+    static {
+        Security.addProvider(new BouncyCastleProvider());
+    }
+
     private final String curveName;
 
-//    private HashAlgorithmEnum hashAlgorithm;
+//    private HashAlgorithm hashAlgorithm;
 
 //    private Object hashFunctionKeyDerivation;
 
 //    private int hashOutputSize;
 
-//    private SecurityLevelEnum securityLevel;
+//    private SecurityLevel securityLevel;
 
 //    private String suite;
 
     private final String signatureName;
 
 
-    public Crypto(SecurityLevelEnum securityLevel, HashAlgorithmEnum hashAlgorithm) {
-        curveName = SecurityLevelEnum.CURVE_P_256_Size == securityLevel ? "secp256r1" : "secp384r1";
-        if (hashAlgorithm == HashAlgorithmEnum.SHA2 && securityLevel == SecurityLevelEnum.CURVE_P_384_Size) {
+    public Crypto(SecurityLevel securityLevel, HashAlgorithm hashAlgorithm) {
+        curveName = SecurityLevel.CURVE_P_256_Size == securityLevel ? "secp256r1" : "secp384r1";
+        if (hashAlgorithm == HashAlgorithm.SHA2 && securityLevel == SecurityLevel.CURVE_P_384_Size) {
             throw new RuntimeException("SHA2 not support size 384");
-        } else if (hashAlgorithm == HashAlgorithmEnum.SHA2 && securityLevel == SecurityLevelEnum.CURVE_P_256_Size) {
+        } else if (hashAlgorithm == HashAlgorithm.SHA2 && securityLevel == SecurityLevel.CURVE_P_256_Size) {
             signatureName = "SHA256withECDDSA";
-        } else if (hashAlgorithm == HashAlgorithmEnum.SHA3 && securityLevel == SecurityLevelEnum.CURVE_P_384_Size) {
+        } else if (hashAlgorithm == HashAlgorithm.SHA3 && securityLevel == SecurityLevel.CURVE_P_384_Size) {
             signatureName = "SHA3-384withECDSA";
         } else {
             signatureName = "SHA3-256withECDSA";
@@ -77,6 +82,63 @@ public class Crypto {
             throw new RuntimeException(e);
         }
     }
+
+//    public ByteString eciesDecrypt(PrivateKey recipientPrivateKey, String cipherText) {
+//        BCECPrivateKey bcecPrivateKey = (BCECPrivateKey) recipientPrivateKey;
+//        ECNamedCurveSpec ecNamedCurveSpec = (ECNamedCurveSpec) bcecPrivateKey.getParams();
+//
+//        int level = SecurityLevel.from(ecNamedCurveSpec.getName()).size();
+//        //cipherText = ephemeralPubKeyBytes + encryptedTokBytes + macBytes
+//        //ephemeralPubKeyBytes = first ((384+7)/8)*2 + 1 bytes = first 97 bytes
+//        //hmac is sha3_384 = 48 bytes or sha3_256 = 32 bytes
+//        int ephemeralPubKeyLength = ((level + 7) / 8) * 2 + 1;
+//        int hmacLength = level >> 3;
+//        int cipherTextLength = ByteString.copyFromUtf8(cipherText).size();
+//
+//        if (ct_len <= Rb_len + D_len)
+//            throw new Error("Illegal cipherText length: " + ct_len + " must be > " + (Rb_len + D_len));
+//
+//        var Rb = cipherText.slice(0, Rb_len);  // ephemeral public key bytes
+//        var EM = cipherText.slice(Rb_len, ct_len - D_len);  // encrypted content bytes
+//        var D = cipherText.slice(ct_len - D_len);
+//
+//        // debug("Rb :\n", new Buffer(Rb).toString('hex'));
+//        // debug("EM :\n", new Buffer(EM).toString('hex'));
+//        // debug("D  :\n", new Buffer(D).toString('hex'));
+//
+//        var EC = elliptic.ec;
+//        //var curve = elliptic.curves['p'+level];
+//        var ecdsa = new EC('p' + level);
+//
+//        //convert bytes to usable key object
+//        var ephPubKey = ecdsa.keyFromPublic(new Buffer(Rb, 'hex'), 'hex');
+//        //var encPrivKey = ecdsa.keyFromPrivate(ecKeypair2.prvKeyObj.prvKeyHex, 'hex');
+//        var privKey = ecdsa.keyFromPrivate(recipientPrivateKey.prvKeyHex, 'hex');
+//        // debug('computing Z...', privKey, ephPubKey);
+//
+//        var Z = privKey.derive(ephPubKey.pub);
+//        // debug('Z computed', Z);
+//        // debug('secret:  ', new Buffer(Z.toArray(), 'hex'));
+//        var kdfOutput = self.hkdf(Z.toArray(), ECIESKDFOutput, null, null);
+//        var aesKey = kdfOutput.slice(0, AESKeyLength);
+//        var hmacKey = kdfOutput.slice(AESKeyLength, AESKeyLength + HMACKeyLength);
+//        // debug('secret:  ', new Buffer(Z.toArray(), 'hex'));
+//        // debug('aesKey:  ', new Buffer(aesKey, 'hex'));
+//        // debug('hmacKey: ', new Buffer(hmacKey, 'hex'));
+//
+//        var recoveredD = self.hmac(hmacKey, EM);
+//        debug('recoveredD:  ', new Buffer(recoveredD).toString('hex'));
+//
+//        if (D.compare(new Buffer(recoveredD)) != 0) {
+//            // debug("D="+D.toString('hex')+" vs "+new Buffer(recoveredD).toString('hex'));
+//            throw new Error("HMAC verify failed");
+//        }
+//        var iv = EM.slice(0, IVLength);
+//        var cipher = crypto.createDecipheriv('aes-256-cfb', new Buffer(aesKey), iv);
+//        var decryptedBytes = cipher.update(EM.slice(IVLength));
+//        // debug("decryptedBytes: ",new Buffer(decryptedBytes).toString('hex'));
+//        return decryptedBytes;
+//    }
 
 //    public String ecdsaKeyFromPrivate(ByteString privateKey, BaseEncoding encoding) {
 //        return encoding.encode(privateKey);
@@ -123,4 +185,9 @@ public class Crypto {
         }
     }
 
+    public static void main(String[] args) throws Exception {
+        Crypto crypto = new Crypto(SecurityLevel.CURVE_P_256_Size, HashAlgorithm.SHA3);
+        PrivateKey privateKey = crypto.ecdsaKeyGen().getPrivate();
+        System.out.println(privateKey.getAlgorithm());
+    }
 }

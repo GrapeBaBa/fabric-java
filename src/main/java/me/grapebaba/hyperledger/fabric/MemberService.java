@@ -31,4 +31,12 @@ public interface MemberService {
      * @return A listenableFuture for adding listener to handle enrollmentSecret
      */
     ListenableFuture<String> register(RegistrationRequest registrationRequest, Member registrar);
+
+    /**
+     * Enroll the member and return an opaque member object.
+     *
+     * @param enrollmentRequest Enrollment request with the following fields: name, enrollmentSecret
+     * @return A listenableFuture for adding listener to handle enrollment
+     */
+    ListenableFuture<Enrollment> enroll(EnrollmentRequest enrollmentRequest);
 }

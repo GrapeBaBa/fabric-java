@@ -25,5 +25,5 @@ import com.google.common.util.concurrent.ListenableFuture;
 public interface KVStore<T> {
     ListenableFuture<T> getValue(String name);
 
-    ListenableFuture<Void> setValue(String name, T value);
+    ListenableFuture<T> setValue(String name, T value);
 }

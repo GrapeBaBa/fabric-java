@@ -16,19 +16,44 @@
  */
 package me.grapebaba.hyperledger.fabric;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import net.openhft.chronicle.map.ChronicleMap;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * KVStore implementation based on ChronicleMap.
  */
 public class ChronicleMapStore implements KVStore<Member> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChronicleMapStore.class);
+
+    private final ChronicleMap<String, Member> store;
+
+    public ChronicleMapStore(String filePath) {
+        try {
+            this.store = ChronicleMapBuilder
+                    .of(String.class, Member.class)
+                    .entries(50000)
+                    .createOrRecoverPersistedTo(new File(filePath));
+        } catch (IOException e) {
+            LOGGER.error("Initialize persistent KVStore exception", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+
     @Override
     public ListenableFuture<Member> getValue(String name) {
-        return null;
+        return Futures.immediateFuture(store.get(name));
     }
 
     @Override
-    public ListenableFuture<Void> setValue(String name, Member value) {
-        return null;
+    public ListenableFuture<Member> setValue(String name, Member value) {
+        return Futures.immediateFuture(store.put(name, value));
     }
 }

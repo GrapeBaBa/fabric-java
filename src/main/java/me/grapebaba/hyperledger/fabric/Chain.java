@@ -16,29 +16,49 @@
  */
 package me.grapebaba.hyperledger.fabric;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-
 /**
  * The class representing a chain with which the client SDK interacts.
  */
 public class Chain {
 
-    private LoadingCache<String, Member> members;
+    private KVStore<Member> membersStore;
 
-    public Chain() {
+    private String name;
 
+    private MemberService memberService;
+
+    public Chain(String name) {
+        this.name = name;
     }
 
-    private void initialize() {
-        members = CacheBuilder.newBuilder().build(new CacheLoader<String, Member>() {
-            @Override
-            public Member load(String key) throws Exception {
-                return new Member(key, Chain.this);
-            }
-        });
+    public KVStore<Member> getMembersStore() {
+        return membersStore;
     }
+
+    public void setMembersStore(KVStore<Member> membersStore) {
+        this.membersStore = membersStore;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public MemberService getMemberService() {
+        return memberService;
+    }
+
+    public void setMemberService(MemberService memberService) {
+        this.memberService = memberService;
+    }
+
+    public Chain(String kvStorePath, SecurityLevel securityLevel, HashAlgorithm hashAlgorithm) {
+        membersStore = new ChronicleMapStore(kvStorePath);
+    }
+
 
 //// Name of the chain is only meaningful to the client
 //    private name:string;
@@ -51,12 +71,12 @@ public class Chain {
 //
 //    // A member cache associated with this chain
 //    // TODO: Make an LRU to limit size of member cache
-//    private members:{[name:string]:Member} = {};
+//    private membersStore:{[name:string]:Member} = {};
 //
 //    // The number of tcerts to get in each batch
 //    private tcertBatchSize:number = 200;
 //
-//    // The registrar (if any) that registers & enrolls new members/users
+//    // The registrar (if any) that registers & enrolls new membersStore/users
 //    private registrar:Member;
 //
 //    // The member services used for this chain
