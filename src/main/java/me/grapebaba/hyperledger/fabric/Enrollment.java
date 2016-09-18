@@ -18,37 +18,103 @@ package me.grapebaba.hyperledger.fabric;
 
 import com.google.protobuf.ByteString;
 
+import java.security.PrivateKey;
+
 /**
  * Enrollment metadata.
  */
 public class Enrollment {
-    private String cert;
+    private ByteString cert;
 
-    private String chainKey;
+    private ByteString chainKey;
 
-    private ByteString key;
+    private PrivateKey key;
 
-    public String getCert() {
+    private Enrollment(Builder builder) {
+        setCert(builder.cert);
+        setChainKey(builder.chainKey);
+        setKey(builder.key);
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
+    public ByteString getCert() {
         return cert;
     }
 
-    public void setCert(String cert) {
+    public void setCert(ByteString cert) {
         this.cert = cert;
     }
 
-    public String getChainKey() {
+    public ByteString getChainKey() {
         return chainKey;
     }
 
-    public void setChainKey(String chainKey) {
+    public void setChainKey(ByteString chainKey) {
         this.chainKey = chainKey;
     }
 
-    public ByteString getKey() {
+    public PrivateKey getKey() {
         return key;
     }
 
-    public void setKey(ByteString key) {
+    public void setKey(PrivateKey key) {
         this.key = key;
+    }
+
+    /**
+     * {@code Enrollment} builder static inner class.
+     */
+    public static final class Builder {
+        private ByteString cert;
+        private ByteString chainKey;
+        private PrivateKey key;
+
+        private Builder() {
+        }
+
+        /**
+         * Sets the {@code cert} and returns a reference to this Builder so that the methods can be chained together.
+         *
+         * @param cert the {@code cert} to set
+         * @return a reference to this Builder
+         */
+        public Builder withCert(ByteString cert) {
+            this.cert = cert;
+            return this;
+        }
+
+        /**
+         * Sets the {@code chainKey} and returns a reference to this Builder so that the methods can be chained together.
+         *
+         * @param chainKey the {@code chainKey} to set
+         * @return a reference to this Builder
+         */
+        public Builder withChainKey(ByteString chainKey) {
+            this.chainKey = chainKey;
+            return this;
+        }
+
+        /**
+         * Sets the {@code key} and returns a reference to this Builder so that the methods can be chained together.
+         *
+         * @param key the {@code key} to set
+         * @return a reference to this Builder
+         */
+        public Builder withKey(PrivateKey key) {
+            this.key = key;
+            return this;
+        }
+
+        /**
+         * Returns a {@code Enrollment} built from the parameters previously set.
+         *
+         * @return a {@code Enrollment} built with parameters of this {@code Enrollment.Builder}
+         */
+        public Enrollment build() {
+            return new Enrollment(this);
+        }
     }
 }

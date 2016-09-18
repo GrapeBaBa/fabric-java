@@ -16,11 +16,7 @@
  */
 package me.grapebaba.hyperledger.fabric;
 
-import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
-import org.bouncycastle.jce.spec.ECNamedCurveSpec;
 import org.junit.Test;
-
-import java.security.PrivateKey;
 
 /**
  * Test case for chains.
@@ -29,15 +25,25 @@ public class ChainsTest {
 
     @Test
     public void testChain() {
-//        Chain chain=Chains.getChain("test");
-//        chain.setMembersStore(new ChronicleMapStore("/tmp/fabric-java/kvstore"));
-//        chain.setMemberService(new MemberServiceImpl("localhost",999));
-
-        Crypto crypto = new Crypto(SecurityLevel.CURVE_P_256_Size, HashAlgorithm.SHA3);
-        PrivateKey privateKey = crypto.ecdsaKeyGen().getPrivate();
-        BCECPrivateKey bcecPrivateKey = (BCECPrivateKey) privateKey;
-        ECNamedCurveSpec ecNamedCurveParameterSpec = (ECNamedCurveSpec) bcecPrivateKey.getParams();
-        System.out.print(ecNamedCurveParameterSpec.getName());
-
+//        Crypto crypto = new Crypto(SecurityLevel.CURVE_P_256_Size, HashAlgorithm.SHA3);
+//        MemberService memberService = new MemberServiceImpl("localhost", 7054, crypto);
+//        Chain test = Chains.getChain("test");
+//        test.setMemberService(memberService);
+//        test.setMembersStore(new ChronicleMapStore("/tmp/fabric-java/kvstore"));
+//        EnrollmentRequest enrollmentRequest = EnrollmentRequest.newBuilder()
+//                .withEnrollmentID("admin")
+//                .withEnrollmentSecret("Xurw3yU9zI0l")
+//                .build();
+//        Futures.addCallback(test.enroll(enrollmentRequest), new FutureCallback<Enrollment>() {
+//            @Override
+//            public void onSuccess(@Nullable Enrollment result) {
+//                System.out.println(result);
+//            }
+//
+//            @Override
+//            public void onFailure(Throwable t) {
+//                System.out.println(t);
+//            }
+//        });
     }
 }

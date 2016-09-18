@@ -18,10 +18,8 @@ package me.grapebaba.hyperledger.fabric;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
@@ -31,6 +29,7 @@ import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.SslContext;
+import org.bouncycastle.util.BigIntegers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import protos.*;
@@ -38,9 +37,11 @@ import protos.*;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLException;
 import java.io.File;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.List;
@@ -63,17 +64,18 @@ public class MemberServiceImpl implements MemberService {
 
     private Crypto crypto;
 
-    public MemberServiceImpl(String host, int port, String pemPath, String serverHostOverride) {
+    public MemberServiceImpl(String host, int port, String pemPath, String serverHostOverride, Crypto crypto) {
         Preconditions.checkNotNull(host);
         Preconditions.checkNotNull(port);
         Preconditions.checkNotNull(pemPath);
         Preconditions.checkNotNull(serverHostOverride);
+        Preconditions.checkNotNull(crypto);
 
         InetAddress address = null;
         try {
             address = InetAddress.getByAddress(serverHostOverride, InetAddress.getByName(host).getAddress());
         } catch (UnknownHostException e) {
-            logger.error("Unknown host exception {}, host address {}", e, host);
+            logger.error("Create member service failed by unknown host exception", e);
             Throwables.propagate(e);
         }
 
@@ -82,19 +84,20 @@ public class MemberServiceImpl implements MemberService {
             sslContext = GrpcSslContexts.forClient().trustManager(
                     new File(pemPath)).build();
         } catch (SSLException e) {
-            logger.error("SSL exception {}, pem path {}", e, pemPath);
+            logger.error("Create member service failed by ssl exception", e);
             Throwables.propagate(e);
         }
 
-        final Channel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(address, port))
+        final Channel channel = NettyChannelBuilder
+                .forAddress(new InetSocketAddress(address, port))
                 .sslContext(sslContext)
                 .build();
 
         initializeStubs(channel);
-        crypto = new Crypto(SecurityLevel.CURVE_P_256_Size, HashAlgorithm.SHA3);
+        this.crypto = crypto;
     }
 
-    public MemberServiceImpl(String host, int port) {
+    public MemberServiceImpl(String host, int port, Crypto crypto) {
         Preconditions.checkNotNull(host);
         Preconditions.checkNotNull(port);
 
@@ -102,7 +105,7 @@ public class MemberServiceImpl implements MemberService {
         try {
             address = InetAddress.getByName(host);
         } catch (UnknownHostException e) {
-            logger.error("Unknown host exception {}, host address {}", e, host);
+            logger.error("Create member service failed by unknown host exception", e);
             Throwables.propagate(e);
         }
 
@@ -112,62 +115,64 @@ public class MemberServiceImpl implements MemberService {
                 .build();
 
         initializeStubs(channel);
+        this.crypto = crypto;
     }
 
     @Override
     public ListenableFuture<String> register(RegistrationRequest registrationRequest, Member member) {
-        if (Strings.isNullOrEmpty(registrationRequest.getEnrollmentID())) {
-            return Futures.immediateFailedFuture(new RuntimeException("EnrollmentID is empty."));
-        }
-
-        if (null == member) {
-            return Futures.immediateFailedFuture(new RuntimeException("Member is empty."));
-        }
-
-        Ca.Registrar.Builder registrarBuilder = Ca.Registrar.newBuilder()
-                .setId(Ca.Identity.newBuilder().setId(member.getName()).build());
-
-        if (!registrationRequest.getAllowableRols().isEmpty()) {
-            registrarBuilder.addAllRoles(Lists.transform(registrationRequest.getAllowableRols(), new Function<Ca.Role, String>() {
-                @Nullable
-                @Override
-                public String apply(@Nullable Ca.Role input) {
-                    return input.name();
-                }
-            }));
-        }
-        if (!registrationRequest.getAllowableDelegateRols().isEmpty()) {
-            registrarBuilder.addAllRoles(Lists.transform(registrationRequest.getAllowableDelegateRols(), new Function<Ca.Role, String>() {
-                @Nullable
-                @Override
-                public String apply(@Nullable Ca.Role input) {
-                    return input.name();
-                }
-            }));
-        }
-
-        Ca.RegisterUserReq registerUserReq = Ca.RegisterUserReq.newBuilder()
-                .setId(Ca.Identity.newBuilder().setId(registrationRequest.getEnrollmentID()))
-                .setRoleValue(rolesToMask(registrationRequest.getRoles()))
-                .setAffiliation(registrationRequest.getAffiliation())
-                .setRegistrar(registrarBuilder)
-                .build();
-
-        ByteString message = registerUserReq.toByteString();
-        ByteString signedMessage = crypto.ecdsaSign(member.getEnrollment().getKey(), message);
-
-        Ca.Signature.Builder signatureBuilder = Ca.Signature.newBuilder().setType(Ca.CryptoType.ECDSA)
-                .setR(message)
-                .setS(signedMessage);
-
-
-        return Futures.transform(ecaaStub.registerUser(registerUserReq.toBuilder().setSig(signatureBuilder).build()), new Function<Ca.Token, String>() {
-            @Nullable
-            @Override
-            public String apply(@Nullable Ca.Token input) {
-                return input.getTok().toString();
-            }
-        });
+//        if (Strings.isNullOrEmpty(registrationRequest.getEnrollmentID())) {
+//            return Futures.immediateFailedFuture(new RuntimeException("EnrollmentID is empty."));
+//        }
+//
+//        if (null == member) {
+//            return Futures.immediateFailedFuture(new RuntimeException("Member is empty."));
+//        }
+//
+//        Ca.Registrar.Builder registrarBuilder = Ca.Registrar.newBuilder()
+//                .setId(Ca.Identity.newBuilder().setId(member.getName()).build());
+//
+//        if (!registrationRequest.getAllowableRols().isEmpty()) {
+//            registrarBuilder.addAllRoles(Lists.transform(registrationRequest.getAllowableRols(), new Function<Ca.Role, String>() {
+//                @Nullable
+//                @Override
+//                public String apply(@Nullable Ca.Role input) {
+//                    return input.name();
+//                }
+//            }));
+//        }
+//        if (!registrationRequest.getAllowableDelegateRols().isEmpty()) {
+//            registrarBuilder.addAllRoles(Lists.transform(registrationRequest.getAllowableDelegateRols(), new Function<Ca.Role, String>() {
+//                @Nullable
+//                @Override
+//                public String apply(@Nullable Ca.Role input) {
+//                    return input.name();
+//                }
+//            }));
+//        }
+//
+//        Ca.RegisterUserReq registerUserReq = Ca.RegisterUserReq.newBuilder()
+//                .setId(Ca.Identity.newBuilder().setId(registrationRequest.getEnrollmentID()))
+//                .setRoleValue(rolesToMask(registrationRequest.getRoles()))
+//                .setAffiliation(registrationRequest.getAffiliation())
+//                .setRegistrar(registrarBuilder)
+//                .build();
+//
+//        ByteString message = registerUserReq.toByteString();
+//        ByteString signedMessage = crypto.ecdsaSign(member.getEnrollment().getKey(), message);
+//
+//        Ca.Signature.Builder signatureBuilder = Ca.Signature.newBuilder().setType(Ca.CryptoType.ECDSA)
+//                .setR(message)
+//                .setS(signedMessage);
+//
+//
+//        return Futures.transform(ecaaStub.registerUser(registerUserReq.toBuilder().setSig(signatureBuilder).build()), new Function<Ca.Token, String>() {
+//            @Nullable
+//            @Override
+//            public String apply(@Nullable Ca.Token input) {
+//                return input.getTok().toString();
+//            }
+//        });
+        return null;
     }
 
     @Override
@@ -175,31 +180,80 @@ public class MemberServiceImpl implements MemberService {
         Preconditions.checkNotNull(enrollmentRequest.getEnrollmentID());
         Preconditions.checkNotNull(enrollmentRequest.getEnrollmentSecret());
 
-        KeyPair signingKeyPair = crypto.ecdsaKeyGen();
+        final KeyPair signingKeyPair = crypto.ecdsaKeyGen();
         PublicKey signingPublicKey = signingKeyPair.getPublic();
 
-        KeyPair encryptionKeyPair = crypto.ecdsaKeyGen();
+        final KeyPair encryptionKeyPair = crypto.ecdsaKeyGen();
         PublicKey encryptionPublicKey = encryptionKeyPair.getPublic();
 
-        Ca.ECertCreateReq eCertCreateReq = Ca.ECertCreateReq.newBuilder().setId(Ca.Identity.newBuilder().setId(enrollmentRequest.getEnrollmentID()).build())
-                .setTok(Ca.Token.newBuilder().setTok(ByteString.copyFromUtf8(enrollmentRequest.getEnrollmentSecret())).build())
-                .setTs(Timestamp.newBuilder().setSeconds(System.currentTimeMillis() / 1000).setNanos(0))
-                .setSign(Ca.PublicKey.newBuilder().setType(Ca.CryptoType.ECDSA).setKey(ByteString.copyFrom(signingPublicKey.getEncoded())).build())
-                .setEnc(Ca.PublicKey.newBuilder().setType(Ca.CryptoType.ECDSA).setKey(ByteString.copyFrom(encryptionPublicKey.getEncoded())).build())
+        final Timestamp timestamp = Timestamp.newBuilder()
+                .setSeconds(System.currentTimeMillis() / 1000)
+                .setNanos(0)
                 .build();
+        final Ca.Identity id = Ca.Identity.newBuilder()
+                .setId(enrollmentRequest.getEnrollmentID())
+                .build();
+        final Ca.Token tok = Ca.Token.newBuilder()
+                .setTok(ByteString.copyFrom(enrollmentRequest.getEnrollmentSecret(), Charset.defaultCharset()))
+                .build();
+        final Ca.PublicKey signingPubKey = Ca.PublicKey.newBuilder()
+                .setType(Ca.CryptoType.ECDSA)
+                .setKey(ByteString.copyFrom(signingPublicKey.getEncoded()))
+                .build();
+        final Ca.PublicKey encryptionPubKey = Ca.PublicKey.newBuilder()
+                .setType(Ca.CryptoType.ECDSA)
+                .setKey(ByteString.copyFrom(encryptionPublicKey.getEncoded()))
+                .build();
+        final Ca.ECertCreateReq eCertCreateReq = Ca.ECertCreateReq.newBuilder()
+                .setId(id)
+                .setTok(tok)
+                .setTs(timestamp)
+                .setSign(signingPubKey)
+                .setEnc(encryptionPubKey)
+                .buildPartial();
 
-        Futures.addCallback(ecapStub.createCertificatePair(eCertCreateReq), new FutureCallback<Ca.ECertCreateResp>() {
+        ListenableFuture<ByteString> updatedTokenFuture = Futures.transform(ecapStub.createCertificatePair(eCertCreateReq), new Function<Ca.ECertCreateResp, ByteString>() {
+            @Nullable
             @Override
-            public void onSuccess(@Nullable Ca.ECertCreateResp result) {
-
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-
+            public ByteString apply(@Nullable Ca.ECertCreateResp input) {
+                return crypto.eciesDecrypt(encryptionKeyPair.getPrivate(), input.getTok().getTok());
             }
         });
-        return null;
+
+        ListenableFuture<Ca.ECertCreateResp> eCertCreateResp = Futures.transformAsync(updatedTokenFuture, new AsyncFunction<ByteString, Ca.ECertCreateResp>() {
+            @Override
+            public ListenableFuture<Ca.ECertCreateResp> apply(@Nullable ByteString input) throws Exception {
+                final Ca.Token tok = Ca.Token.newBuilder()
+                        .setTok(input)
+                        .build();
+                ByteString origin = eCertCreateReq.toBuilder()
+                        .setTok(tok)
+                        .buildPartial()
+                        .toByteString();
+                BigInteger[] sig = crypto.ecdsaSign(signingKeyPair.getPrivate(), origin);
+                Ca.Signature signature = Ca.Signature.newBuilder()
+                        .setR(ByteString.copyFrom(BigIntegers.asUnsignedByteArray(sig[0])))
+                        .setS(ByteString.copyFrom(BigIntegers.asUnsignedByteArray(sig[1])))
+                        .setType(Ca.CryptoType.ECDSA)
+                        .build();
+
+                return ecapStub.createCertificatePair(eCertCreateReq.toBuilder()
+                        .setSig(signature)
+                        .build());
+            }
+        });
+
+        return Futures.transform(eCertCreateResp, new Function<Ca.ECertCreateResp, Enrollment>() {
+            @Nullable
+            @Override
+            public Enrollment apply(@Nullable Ca.ECertCreateResp input) {
+                return Enrollment.newBuilder()
+                        .withKey(signingKeyPair.getPrivate())
+                        .withCert(input.getCerts().getSign())
+                        .withChainKey(input.getPkchain())
+                        .build();
+            }
+        });
     }
 
     private void initializeStubs(Channel channel) {

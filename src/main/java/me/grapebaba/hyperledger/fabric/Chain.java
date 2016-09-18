@@ -16,6 +16,8 @@
  */
 package me.grapebaba.hyperledger.fabric;
 
+import com.google.common.util.concurrent.ListenableFuture;
+
 /**
  * The class representing a chain with which the client SDK interacts.
  */
@@ -59,6 +61,9 @@ public class Chain {
         membersStore = new ChronicleMapStore(kvStorePath);
     }
 
+    public ListenableFuture<Enrollment> enroll(EnrollmentRequest enrollmentRequest) {
+        return memberService.enroll(enrollmentRequest);
+    }
 
 //// Name of the chain is only meaningful to the client
 //    private name:string;
